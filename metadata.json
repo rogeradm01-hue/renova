@@ -1,0 +1,5 @@
+{
+  "name": "Gestor Detran-IF",
+  "description": "Ferramenta de gestão de recadastramentos de instituições financeiras nos Detrans do Brasil.",
+  "requestFramePermissions": []
+}
