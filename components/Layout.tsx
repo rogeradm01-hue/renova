@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Home, Users, Leaf } from 'lucide-react';
+import { LogOut, Home, Users, Leaf, Map } from 'lucide-react';
 import { User } from '../types';
 
 interface LayoutProps {
@@ -50,6 +50,17 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
                 >
                     <Home className="w-5 h-5" />
                     <span className="hidden md:inline">Início</span>
+                </button>
+
+                <button
+                    onClick={() => navigate('/detrans')}
+                    className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors
+                        ${isActive('/detrans') ? 'text-blue-900 bg-blue-50' : 'text-slate-600 hover:text-blue-900 hover:bg-slate-100'}
+                    `}
+                    title="Gerenciar Estados"
+                >
+                    <Map className="w-5 h-5" />
+                    <span className="hidden md:inline">Gerenciar Estados</span>
                 </button>
 
                 {/* Master Menu */}

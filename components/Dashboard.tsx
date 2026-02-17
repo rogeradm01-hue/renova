@@ -2,9 +2,9 @@ import React, { useMemo } from 'react';
 import { DetranData } from '../types';
 import { checkExpirationStatus } from '../services/storageService';
 import { STATUS_STYLES } from '../constants';
-import { AlertCircle, CheckCircle2, Clock, PlayCircle, Timer, ChevronRight, BarChart3, Map as MapIcon } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, PlayCircle, Timer, ChevronRight, BarChart3, LayoutGrid } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import BrazilMap from './BrazilMap';
+import ProgressChart from './ProgressChart';
 
 interface DashboardProps {
   data: DetranData[];
@@ -62,23 +62,27 @@ const Dashboard: React.FC<DashboardProps> = ({ data }) => {
 
   const StatCard = ({ title, count, icon: Icon, color, onClickFilter }: any) => (
     <div 
-      className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer flex-1 min-w-[200px]"
+      className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex items-center gap-4 group relative overflow-hidden"
       onClick={onClickFilter}
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
-          <h3 className="text-3xl font-bold text-slate-800">{count}</h3>
-        </div>
-        <div className={`p-3 rounded-lg ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
-        </div>
+      {/* Decorative background accent */}
+      <div className={`absolute right-0 top-0 w-20 h-20 opacity-5 transform translate-x-6 -translate-y-6 rounded-full ${color} pointer-events-none`}></div>
+
+      {/* Icon Left */}
+      <div className={`w-12 h-12 rounded-lg flex items-center justify-center shadow-sm shrink-0 ${color} group-hover:scale-105 transition-transform`}>
+        <Icon className="w-6 h-6 text-white" />
+      </div>
+
+      {/* Content Right */}
+      <div className="flex flex-col">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{title}</span>
+        <h3 className="text-2xl font-bold text-slate-800 leading-none">{count}</h3>
       </div>
     </div>
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -89,29 +93,29 @@ const Dashboard: React.FC<DashboardProps> = ({ data }) => {
 
       {/* Warning Banner */}
       {stats.expiring > 0 && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg flex items-center justify-between shadow-sm">
+        <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-lg flex items-center justify-between shadow-sm animate-pulse">
           <div className="flex items-center gap-3">
-            <AlertCircle className="w-6 h-6 text-red-600" />
+            <AlertCircle className="w-5 h-5 text-red-600" />
             <div>
-              <h3 className="text-red-900 font-semibold">Atenção Necessária</h3>
-              <p className="text-red-700 text-sm">
+              <h3 className="text-red-900 font-bold text-sm">Atenção Necessária</h3>
+              <p className="text-red-700 text-xs">
                 Existem <strong>{stats.expiring}</strong> estados em período crítico de vencimento.
               </p>
             </div>
           </div>
           <button 
             onClick={() => navigate('/detrans?filter=expiring')}
-            className="px-4 py-2 bg-white text-red-700 border border-red-200 rounded-md text-sm font-medium hover:bg-red-50 transition-colors"
+            className="px-3 py-1 bg-white text-red-700 border border-red-200 rounded text-xs font-bold hover:bg-red-50 transition-colors uppercase tracking-wide"
           >
             Ver Detalhes
           </button>
         </div>
       )}
 
-      {/* Top Section: Stats & Map */}
+      {/* Top Section: Stats & Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Stats Cards Column */}
-        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 h-fit">
+        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3 h-fit">
              <StatCard 
               title="Em Vencimento" 
               count={stats.expiring} 
@@ -138,56 +142,30 @@ const Dashboard: React.FC<DashboardProps> = ({ data }) => {
             />
         </div>
 
-        {/* Map Column */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden h-full min-h-[350px]">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                  <MapIcon className="w-4 h-4 text-blue-900" />
-                  Mapa do Brasil
+        {/* Chart Column (Status Grid) */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden h-full min-h-[250px]">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="text-xs font-bold text-slate-600 flex items-center gap-2 uppercase tracking-wide">
+                  <LayoutGrid className="w-4 h-4 text-blue-900" />
+                  Panorama de Status
               </h3>
           </div>
           
-          <div className="flex-1 relative bg-slate-50/50">
-             <BrazilMap data={data} />
-          </div>
-
-          {/* Map Legend */}
-          <div className="px-4 py-3 bg-white border-t border-slate-100">
-              <div className="flex flex-wrap gap-x-4 gap-y-2 justify-center text-[10px] sm:text-xs">
-                  <div className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
-                      <span className="text-slate-600">Recadastrado</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full bg-orange-500"></span>
-                      <span className="text-slate-600">Iniciada</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full bg-blue-900"></span>
-                      <span className="text-slate-600">Em Andamento</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full bg-slate-900"></span>
-                      <span className="text-slate-600 font-bold">Vencido</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full bg-slate-400"></span>
-                      <span className="text-slate-600">N/ Iniciada</span>
-                  </div>
-              </div>
+          <div className="flex-1 relative bg-white p-2">
+             <ProgressChart data={data} />
           </div>
         </div>
       </div>
 
       {/* State List - Lines Format (Dark Navy Theme) */}
       <div className="bg-blue-900 rounded-xl border border-blue-800 shadow-sm overflow-hidden text-white">
-        <div className="p-6 border-b border-blue-800 flex justify-between items-center bg-blue-950">
-           <h3 className="text-lg font-bold text-white flex items-center gap-2">
+        <div className="p-4 border-b border-blue-800 flex justify-between items-center bg-blue-950">
+           <h3 className="text-base font-bold text-white flex items-center gap-2">
              <BarChart3 className="w-5 h-5 text-blue-200" />
              Progresso por Estado
            </h3>
-           <span className="text-xs text-blue-900 font-bold bg-white px-2 py-1 rounded-full shadow-sm">
-             {data.length} Estados
+           <span className="text-[10px] text-blue-900 font-bold bg-white px-2 py-0.5 rounded-full shadow-sm">
+             {data.length} UFs
            </span>
         </div>
 
@@ -196,26 +174,44 @@ const Dashboard: React.FC<DashboardProps> = ({ data }) => {
                  const isExpiring = checkExpirationStatus(d) && d.currentStatus !== 'Concluída' && d.currentStatus !== 'Recadastrado com Sucesso';
                  const progress = getProgressPercentage(d.currentStatus);
                  const isCompleted = progress === 100;
+                 
+                 // Determinar texto e cor do alerta
+                 let alertText = null;
+                 let alertColor = "";
+
+                 if (isExpiring && d.expirationDate) {
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+                    const exp = new Date(d.expirationDate);
+                    exp.setHours(0,0,0,0);
+                    
+                    if (exp < today) {
+                        alertText = "Vencido";
+                        alertColor = "text-red-300";
+                    } else {
+                        alertText = "Iniciar Recadastramento";
+                        alertColor = "text-amber-300";
+                    }
+                 }
 
                  return (
                  <div 
                     key={d.uf} 
                     onClick={() => navigate(`/detran/${d.uf}`)}
-                    className="group hover:bg-blue-800 transition-colors cursor-pointer p-4 grid grid-cols-1 md:grid-cols-12 gap-4 items-center"
+                    className="group hover:bg-blue-800 transition-colors cursor-pointer p-3 grid grid-cols-1 md:grid-cols-12 gap-4 items-center"
                  >
                      {/* 1. UF & Name (MD: Col 1-4) */}
-                     <div className="md:col-span-4 flex items-center gap-4">
+                     <div className="md:col-span-4 flex items-center gap-3">
                          <div className={`
-                            w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shadow-sm transition-transform group-hover:scale-105
+                            w-8 h-8 rounded-md flex items-center justify-center font-bold text-xs shadow-sm transition-transform group-hover:scale-105
                             ${isCompleted ? 'bg-emerald-500 text-white' : 'bg-white text-blue-900'}
                          `}>
                              {d.uf}
                          </div>
-                         <div>
-                             <h4 className="font-bold text-white text-base">{d.stateName}</h4>
-                             <p className="text-xs text-blue-200 flex items-center gap-1">
-                                 Detran-{d.uf}
-                                 {isExpiring && <span className="text-red-300 font-bold ml-1">• Vencendo</span>}
+                         <div className="min-w-0">
+                             <h4 className="font-bold text-white text-sm truncate">{d.stateName}</h4>
+                             <p className="text-[10px] text-blue-200 flex items-center gap-1">
+                                 {alertText && <span className={`${alertColor} font-bold uppercase border px-1 rounded border-current`}>{alertText}</span>}
                              </p>
                          </div>
                      </div>
@@ -223,12 +219,12 @@ const Dashboard: React.FC<DashboardProps> = ({ data }) => {
                      {/* 2. Progress Bar (MD: Col 5-8) */}
                      <div className="md:col-span-4 px-2">
                         <div className="flex justify-between items-end mb-1">
-                            <span className="text-xs font-semibold text-blue-200">Progresso</span>
-                            <span className={`text-xs font-bold ${isCompleted ? 'text-emerald-300' : 'text-white'}`}>
+                            <span className="text-[10px] font-semibold text-blue-200">Progresso</span>
+                            <span className={`text-[10px] font-bold ${isCompleted ? 'text-emerald-300' : 'text-white'}`}>
                                 {progress}%
                             </span>
                         </div>
-                        <div className="w-full h-2.5 bg-blue-950 rounded-full overflow-hidden border border-blue-800">
+                        <div className="w-full h-1.5 bg-blue-950 rounded-full overflow-hidden border border-blue-800">
                             <div 
                                 className={`h-full rounded-full transition-all duration-1000 ease-out ${isCompleted ? 'bg-emerald-500' : 'bg-blue-400'}`}
                                 style={{ width: `${progress}%` }}
@@ -238,19 +234,19 @@ const Dashboard: React.FC<DashboardProps> = ({ data }) => {
 
                      {/* 3. Status & Info (MD: Col 9-11) */}
                      <div className="md:col-span-3 flex flex-col items-start md:items-end justify-center gap-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${STATUS_STYLES[d.currentStatus]}`}>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${STATUS_STYLES[d.currentStatus]}`}>
                             {d.currentStatus}
                         </span>
                         {d.expirationDate && (
-                            <span className={`text-xs ${isExpiring ? 'text-red-300 font-bold' : 'text-blue-200'}`}>
-                                Vence: {new Date(d.expirationDate).toLocaleDateString()}
+                            <span className={`text-[10px] ${isExpiring ? 'text-red-300 font-bold' : 'text-blue-200'}`}>
+                                {new Date(d.expirationDate).toLocaleDateString()}
                             </span>
                         )}
                      </div>
 
                      {/* 4. Arrow Action (MD: Col 12) */}
                      <div className="md:col-span-1 flex justify-end">
-                        <ChevronRight className="w-5 h-5 text-blue-400 group-hover:text-white transition-colors" />
+                        <ChevronRight className="w-4 h-4 text-blue-400 group-hover:text-white transition-colors" />
                      </div>
                  </div>
              )})}

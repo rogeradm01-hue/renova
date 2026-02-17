@@ -6,7 +6,7 @@ import { STATUS_OPTIONS, STATUS_STYLES, INSTITUTION_NAME } from '../constants';
 import * as XLSX from 'xlsx';
 import { 
   ArrowLeft, Plus, Trash2, Calendar, AlertTriangle, 
-  FileText, Phone, User as UserIcon, Mail, History, CheckCircle, Flag, Download, Edit2, X, Save
+  FileText, Phone, User as UserIcon, Mail, History, CheckCircle, Flag, Download, Edit2, X, Save, Clock
 } from 'lucide-react';
 
 const getProgress = (status: RegistrationStatus): number => {
@@ -57,9 +57,9 @@ const DetranDetail: React.FC = () => {
     loadData();
   }, [uf, navigate]);
 
-  const loadData = () => {
+  const loadData = async () => {
     if (uf) {
-      const allData = getDetranData();
+      const allData = await getDetranData();
       const found = allData.find(d => d.uf === uf);
       if (found) {
         setDetran(found);
@@ -348,7 +348,7 @@ const DetranDetail: React.FC = () => {
                     {isCritical && detran.currentStatus !== 'Concluída' && detran.currentStatus !== 'Recadastrado com Sucesso' && (
                         <span className="flex items-center gap-1 text-sm text-red-600 font-bold animate-pulse bg-red-50 px-2 rounded-full border border-red-200">
                             <AlertTriangle className="w-4 h-4" />
-                            Iniciar Processo de Recadastramento
+                            Atenção Necessária
                         </span>
                     )}
                 </div>
@@ -423,6 +423,39 @@ const DetranDetail: React.FC = () => {
                         : 'border-transparent bg-slate-50 text-slate-600 cursor-not-allowed'
                     }`}
                 />
+                
+                {/* Validação visual de Vencimento */}
+                {detran.expirationDate && detran.currentStatus !== 'Concluída' && detran.currentStatus !== 'Recadastrado com Sucesso' && (() => {
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+                    
+                    const expDate = new Date(detran.expirationDate);
+                    // Ajuste para garantir comparação correta de datas sem influência de timezone
+                    const expDatePart = new Date(expDate.getUTCFullYear(), expDate.getUTCMonth(), expDate.getUTCDate());
+                    expDatePart.setHours(0,0,0,0);
+
+                    // Diferença em dias
+                    const diffTime = expDatePart.getTime() - today.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    if (diffDays <= 0) {
+                        return (
+                            <div className="mt-2 flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-lg border border-red-100 animate-pulse">
+                                <AlertTriangle className="w-4 h-4 shrink-0" />
+                                <span className="text-xs font-bold uppercase tracking-wide">Recadastro Vencido</span>
+                            </div>
+                        );
+                    } else if (diffDays <= detran.alertDays) {
+                         return (
+                            <div className="mt-2 flex items-center gap-2 text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100 animate-pulse">
+                                <Clock className="w-4 h-4 shrink-0" />
+                                <span className="text-xs font-bold uppercase tracking-wide">Iniciar Recadastramento</span>
+                            </div>
+                        );
+                    }
+                    return null;
+                })()}
+
               </div>
               
               <div>
