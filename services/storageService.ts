@@ -46,9 +46,9 @@ const initializeData = (): DetranData[] => {
 const initializeUsers = (): User[] => {
   const masterUser: User = {
     username: 'Administrador Master',
-    email: 'rogeradm@hotmail.com',
+    email: 'master@master.com',
     role: 'MASTER',
-    password: 'Lenovo@01', // Senha definida conforme solicitação
+    password: 'Master@01', // Senha definida conforme solicitação
     isFirstLogin: false,
     isActive: true
   };
