@@ -298,6 +298,24 @@ export const getDetranData = (): DetranData[] => {
 
 export const saveDetranData = (data: DetranData[]): void => {
   localStorage.setItem(STORAGE_KEYS.DETRAN_DATA, JSON.stringify(data));
+  
+  // Sync to Supabase if user is logged in
+  const userStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      if (user.id) {
+        import('./supabaseClient').then(({ supabase }) => {
+          supabase.from('user_data').upsert({ user_id: user.id, data: data }, { onConflict: 'user_id' })
+            .then(({ error }) => {
+              if (error) console.error('Error syncing to Supabase:', error);
+            });
+        });
+      }
+    } catch (e) {
+      console.error('Error parsing user for Supabase sync', e);
+    }
+  }
 };
 
 export const updateDetran = (uf: string, updates: Partial<DetranData>): DetranData[] => {
