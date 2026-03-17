@@ -9,22 +9,34 @@ const STORAGE_KEYS = {
   ACCESS_REQUESTS: 'detran_app_requests'
 };
 
-export const syncToSupabase = async () => {
+export const syncToSupabase = async (): Promise<string | null> => {
   try {
     const state = {
       users: localStorage.getItem(STORAGE_KEYS.USERS_DB),
       data: localStorage.getItem(STORAGE_KEYS.DETRAN_DATA),
       requests: localStorage.getItem(STORAGE_KEYS.ACCESS_REQUESTS)
     };
-    await supabase.from('user_data').upsert({ user_id: 'global_state', data: state }, { onConflict: 'user_id' });
-  } catch (e) {
+    const { error } = await supabase.from('user_data').upsert({ user_id: 'global_state', data: state }, { onConflict: 'user_id' });
+    if (error) {
+      console.error('Supabase Upsert Error:', error);
+      return error.message;
+    }
+    return null;
+  } catch (e: any) {
     console.error('Error syncing to Supabase', e);
+    return e.message || 'Erro de conexão com o Supabase';
   }
 };
 
 export const syncFromSupabase = async () => {
   try {
     const { data, error } = await supabase.from('user_data').select('data').eq('user_id', 'global_state').single();
+    if (error) {
+       // Ignora erro de "nenhuma linha encontrada" (PGRST116) pois é esperado no primeiro acesso
+       if (error.code !== 'PGRST116') {
+           console.error('Supabase Select Error:', error);
+       }
+    }
     if (data && data.data) {
       const state = data.data;
       if (state.users) localStorage.setItem(STORAGE_KEYS.USERS_DB, state.users);
@@ -138,13 +150,15 @@ export const getAccessRequests = (): AccessRequest[] => {
 };
 
 // Solicitação de Novo Cadastro
-export const createAccessRequest = async (username: string, email: string): Promise<void> => {
+export const createAccessRequest = async (username: string, email: string): Promise<{ success: boolean, message: string }> => {
   await syncFromSupabase(); // Garante que temos as solicitações mais recentes
   const requests = getAccessRequests();
   const normalizedEmail = email.trim().toLowerCase();
   
   // Evitar duplicidade de solicitação
-  if (requests.find(r => r.email.toLowerCase() === normalizedEmail && r.type === 'NEW_ACCOUNT')) return;
+  if (requests.find(r => r.email.toLowerCase() === normalizedEmail && r.type === 'NEW_ACCOUNT')) {
+    return { success: false, message: 'Já existe uma solicitação pendente para este e-mail.' };
+  }
 
   const newRequest: AccessRequest = {
     id: crypto.randomUUID(),
@@ -155,7 +169,13 @@ export const createAccessRequest = async (username: string, email: string): Prom
   };
 
   localStorage.setItem(STORAGE_KEYS.ACCESS_REQUESTS, JSON.stringify([...requests, newRequest]));
-  await syncToSupabase();
+  const error = await syncToSupabase();
+  
+  if (error) {
+    return { success: false, message: `Erro ao salvar no banco de dados: ${error}` };
+  }
+  
+  return { success: true, message: 'Solicitação enviada ao usuário Máster com sucesso!' };
 };
 
 // Solicitação de Reset de Senha
@@ -189,7 +209,12 @@ export const createPasswordResetRequest = async (email: string): Promise<{ succe
     };
 
     localStorage.setItem(STORAGE_KEYS.ACCESS_REQUESTS, JSON.stringify([...requests, newRequest]));
-    await syncToSupabase();
+    const error = await syncToSupabase();
+    
+    if (error) {
+        return { success: false, message: `Erro ao salvar no banco de dados: ${error}` };
+    }
+    
     return { success: true, message: 'Solicitação de reset enviada ao Administrador.' };
 };
 

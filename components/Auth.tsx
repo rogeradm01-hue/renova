@@ -65,14 +65,19 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       return;
     }
 
-    await createAccessRequest(username, email);
-    setSuccess('Solicitação enviada ao usuário Máster com sucesso!');
-    setTimeout(() => {
-        setViewState('LOGIN');
-        setSuccess('');
-        setEmail('');
-        setUsername('');
-    }, 3000);
+    const result = await createAccessRequest(username, email);
+    
+    if (result.success) {
+      setSuccess(result.message);
+      setTimeout(() => {
+          setViewState('LOGIN');
+          setSuccess('');
+          setEmail('');
+          setUsername('');
+      }, 3000);
+    } else {
+      setError(result.message);
+    }
   };
 
   const handleResetRequestSubmit = async (e: React.FormEvent) => {
