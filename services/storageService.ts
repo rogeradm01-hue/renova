@@ -1,11 +1,39 @@
 import { DetranData, User, RegistrationStatus, AccessRequest, UserRole } from '../types';
 import { BRAZIL_STATES } from '../constants';
+import { supabase } from './supabaseClient';
 
 const STORAGE_KEYS = {
   CURRENT_USER: 'detran_app_current_user',
   DETRAN_DATA: 'detran_app_data',
   USERS_DB: 'detran_app_users_db',
   ACCESS_REQUESTS: 'detran_app_requests'
+};
+
+export const syncToSupabase = async () => {
+  try {
+    const state = {
+      users: localStorage.getItem(STORAGE_KEYS.USERS_DB),
+      data: localStorage.getItem(STORAGE_KEYS.DETRAN_DATA),
+      requests: localStorage.getItem(STORAGE_KEYS.ACCESS_REQUESTS)
+    };
+    await supabase.from('user_data').upsert({ user_id: 'global_state', data: state }, { onConflict: 'user_id' });
+  } catch (e) {
+    console.error('Error syncing to Supabase', e);
+  }
+};
+
+export const syncFromSupabase = async () => {
+  try {
+    const { data, error } = await supabase.from('user_data').select('data').eq('user_id', 'global_state').single();
+    if (data && data.data) {
+      const state = data.data;
+      if (state.users) localStorage.setItem(STORAGE_KEYS.USERS_DB, state.users);
+      if (state.data) localStorage.setItem(STORAGE_KEYS.DETRAN_DATA, state.data);
+      if (state.requests) localStorage.setItem(STORAGE_KEYS.ACCESS_REQUESTS, state.requests);
+    }
+  } catch (e) {
+    console.error('Error syncing from Supabase', e);
+  }
 };
 
 // --- Data Initialization ---
@@ -37,6 +65,7 @@ const initializeData = (): DetranData[] => {
   }));
 
   localStorage.setItem(STORAGE_KEYS.DETRAN_DATA, JSON.stringify(initialData));
+  syncToSupabase();
   return initialData;
 };
 
@@ -87,6 +116,7 @@ const initializeUsers = (): User[] => {
 
     if (changed) {
         localStorage.setItem(STORAGE_KEYS.USERS_DB, JSON.stringify(users));
+        syncToSupabase();
     }
     return users;
   }
@@ -94,6 +124,7 @@ const initializeUsers = (): User[] => {
   // Primeira inicialização
   const initialUsers = [masterUser];
   localStorage.setItem(STORAGE_KEYS.USERS_DB, JSON.stringify(initialUsers));
+  syncToSupabase();
   return initialUsers;
 };
 
@@ -123,6 +154,7 @@ export const createAccessRequest = (username: string, email: string): void => {
   };
 
   localStorage.setItem(STORAGE_KEYS.ACCESS_REQUESTS, JSON.stringify([...requests, newRequest]));
+  syncToSupabase();
 };
 
 // Solicitação de Reset de Senha
@@ -155,6 +187,7 @@ export const createPasswordResetRequest = (email: string): { success: boolean, m
     };
 
     localStorage.setItem(STORAGE_KEYS.ACCESS_REQUESTS, JSON.stringify([...requests, newRequest]));
+    syncToSupabase();
     return { success: true, message: 'Solicitação de reset enviada ao Administrador.' };
 };
 
@@ -172,6 +205,7 @@ export const approveRequest = (requestId: string, role?: UserRole): void => {
         // Usuário já existe, apenas remove request
         const remainingRequests = requests.filter(r => r.id !== requestId);
         localStorage.setItem(STORAGE_KEYS.ACCESS_REQUESTS, JSON.stringify(remainingRequests));
+        syncToSupabase();
         return;
       }
 
@@ -203,12 +237,14 @@ export const approveRequest = (requestId: string, role?: UserRole): void => {
   // Remove request (comum para ambos os casos)
   const remainingRequests = requests.filter(r => r.id !== requestId);
   localStorage.setItem(STORAGE_KEYS.ACCESS_REQUESTS, JSON.stringify(remainingRequests));
+  syncToSupabase();
 };
 
 export const deleteAccessRequest = (requestId: string): void => {
   const requests = getAccessRequests();
   const remaining = requests.filter(r => r.id !== requestId);
   localStorage.setItem(STORAGE_KEYS.ACCESS_REQUESTS, JSON.stringify(remaining));
+  syncToSupabase();
 };
 
 export const validateLogin = (email: string, password: string): { success: boolean; user?: User; message?: string } => {
@@ -240,6 +276,19 @@ export const changeUserPassword = (email: string, newPassword: string): void => 
   if (currentUser && currentUser.email.toLowerCase() === email.trim().toLowerCase()) {
     saveUser({ ...currentUser, isFirstLogin: false });
   }
+  syncToSupabase();
+};
+
+export const resetUserPassword = (email: string): void => {
+  const users = getAllUsers();
+  const updatedUsers = users.map(u => {
+    if (u.email.toLowerCase() === email.trim().toLowerCase()) {
+      return { ...u, password: '123456', isFirstLogin: true };
+    }
+    return u;
+  });
+  localStorage.setItem(STORAGE_KEYS.USERS_DB, JSON.stringify(updatedUsers));
+  syncToSupabase();
 };
 
 export const toggleUserStatus = (email: string): void => {
@@ -251,6 +300,7 @@ export const toggleUserStatus = (email: string): void => {
         return u;
     });
     localStorage.setItem(STORAGE_KEYS.USERS_DB, JSON.stringify(updatedUsers));
+    syncToSupabase();
 };
 
 export const updateUserRole = (email: string, newRole: UserRole): void => {
@@ -266,6 +316,7 @@ export const updateUserRole = (email: string, newRole: UserRole): void => {
         return u;
     });
     localStorage.setItem(STORAGE_KEYS.USERS_DB, JSON.stringify(updatedUsers));
+    syncToSupabase();
 };
 
 export const deleteUser = (email: string): void => {
@@ -288,6 +339,7 @@ export const deleteUser = (email: string): void => {
     });
     
     localStorage.setItem(STORAGE_KEYS.USERS_DB, JSON.stringify(updatedUsers));
+    syncToSupabase();
 };
 
 // --- General Data Access ---
@@ -298,24 +350,7 @@ export const getDetranData = (): DetranData[] => {
 
 export const saveDetranData = (data: DetranData[]): void => {
   localStorage.setItem(STORAGE_KEYS.DETRAN_DATA, JSON.stringify(data));
-  
-  // Sync to Supabase if user is logged in
-  const userStr = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr);
-      if (user.id) {
-        import('./supabaseClient').then(({ supabase }) => {
-          supabase.from('user_data').upsert({ user_id: user.id, data: data }, { onConflict: 'user_id' })
-            .then(({ error }) => {
-              if (error) console.error('Error syncing to Supabase:', error);
-            });
-        });
-      }
-    } catch (e) {
-      console.error('Error parsing user for Supabase sync', e);
-    }
-  }
+  syncToSupabase();
 };
 
 export const updateDetran = (uf: string, updates: Partial<DetranData>): DetranData[] => {
@@ -326,6 +361,24 @@ export const updateDetran = (uf: string, updates: Partial<DetranData>): DetranDa
     saveDetranData(currentData);
   }
   return currentData;
+};
+
+export const clearAllHistory = (): void => {
+  const data = getDetranData();
+  const updated = data.map(d => ({ ...d, statusHistory: [] }));
+  saveDetranData(updated);
+};
+
+export const clearAllDeadlines = (): void => {
+  const data = getDetranData();
+  const updated = data.map(d => ({ ...d, expirationDate: null, alertDays: 30, configMetadata: undefined }));
+  saveDetranData(updated);
+};
+
+export const clearAllContacts = (): void => {
+  const data = getDetranData();
+  const updated = data.map(d => ({ ...d, contact: { name: '', phone: '', email: '' }, contactMetadata: undefined }));
+  saveDetranData(updated);
 };
 
 // --- Session Management ---

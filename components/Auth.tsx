@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { Eye, EyeOff, Lock, Mail, User as UserIcon, AlertTriangle, Leaf } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
+import { validateLogin, createAccessRequest, changeUserPassword, createPasswordResetRequest } from '../services/storageService';
 
 interface AuthProps {
   onLogin: (user: User) => void;
 }
 
 const Auth: React.FC<AuthProps> = ({ onLogin }) => {
-  const [viewState, setViewState] = useState<'LOGIN' | 'SIGNUP' | 'RESET_PASSWORD_REQUEST'>('LOGIN');
+  const [viewState, setViewState] = useState<'LOGIN' | 'REQUEST_ACCESS' | 'CHANGE_PASSWORD' | 'RESET_PASSWORD_REQUEST'>('LOGIN');
   const [showPassword, setShowPassword] = useState(false);
   
   // Form States
@@ -16,103 +16,115 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   
+  // Change Password State
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
   // Feedback
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  // Password Validation Regex
+  const validatePasswordStrength = (pwd: string) => {
+    // Letters, numbers, special char @ or *
+    const regex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@*])[A-Za-z\d@*]+$/;
+    return regex.test(pwd);
+  };
+
+  const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
     
     if (!email || !password) {
       setError('Preencha e-mail e senha.');
-      setLoading(false);
       return;
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError(error.message || 'Erro ao entrar.');
-    } else if (data.user) {
-      const user: User = {
-        username: data.user.user_metadata?.username || email.split('@')[0],
-        email: data.user.email || email,
-        role: data.user.user_metadata?.role || 'EDITOR',
-        isActive: true,
-        id: data.user.id
-      };
-      onLogin(user);
+    const result = validateLogin(email, password);
+    
+    if (result.success && result.user) {
+      if (result.user.isFirstLogin) {
+        setViewState('CHANGE_PASSWORD');
+        setError('');
+        setSuccess('É necessário alterar sua senha padrão no primeiro acesso.');
+      } else {
+        onLogin(result.user);
+      }
+    } else {
+      setError(result.message || 'Erro ao entrar.');
     }
-    setLoading(false);
   };
 
-  const handleSignupSubmit = async (e: React.FormEvent) => {
+  const handleRequestAccessSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    setLoading(true);
 
-    if (!email || !username || !password) {
-      setError('Preencha nome, e-mail e senha.');
-      setLoading(false);
+    if (!email || !username) {
+      setError('Preencha nome e e-mail.');
       return;
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username,
-          role: 'EDITOR' // Default role
-        }
-      }
-    });
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setSuccess('Cadastro realizado com sucesso! Você já pode fazer login.');
-      setTimeout(() => {
-          setViewState('LOGIN');
-          setSuccess('');
-          setPassword('');
-      }, 3000);
-    }
-    setLoading(false);
+    createAccessRequest(username, email);
+    setSuccess('Solicitação enviada ao usuário Máster com sucesso!');
+    setTimeout(() => {
+        setViewState('LOGIN');
+        setSuccess('');
+        setEmail('');
+        setUsername('');
+    }, 3000);
   };
 
-  const handleResetRequestSubmit = async (e: React.FormEvent) => {
+  const handleResetRequestSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       setError('');
       setSuccess('');
-      setLoading(true);
 
       if (!email) {
           setError('Preencha o e-mail cadastrado.');
-          setLoading(false);
           return;
       }
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
-      
-      if (error) {
-          setError(error.message);
-      } else {
-          setSuccess('E-mail de recuperação enviado com sucesso.');
+      const result = createPasswordResetRequest(email);
+      if (result.success) {
+          setSuccess(result.message);
           setTimeout(() => {
             setViewState('LOGIN');
             setSuccess('');
             setEmail('');
         }, 4000);
+      } else {
+          setError(result.message);
       }
-      setLoading(false);
+  };
+
+  const handleChangePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (newPassword !== confirmPassword) {
+      setError('As senhas não coincidem.');
+      return;
+    }
+
+    if (!validatePasswordStrength(newPassword)) {
+      setError('A senha deve conter letras, números e o caractere especial @ ou *');
+      return;
+    }
+
+    changeUserPassword(email, newPassword);
+    
+    // Login automático após troca
+    const result = validateLogin(email, newPassword);
+    if (result.success && result.user) {
+       onLogin(result.user);
+    } else {
+       // Fallback
+       setViewState('LOGIN');
+       setSuccess('Senha alterada. Faça login novamente.');
+       setPassword('');
+    }
   };
 
   return (
@@ -134,12 +146,14 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             <div className="mt-4 text-center">
               <h2 className="text-lg font-semibold text-blue-900">
                 {viewState === 'LOGIN' && 'Acesso ao Sistema'}
-                {viewState === 'SIGNUP' && 'Criar Conta'}
+                {viewState === 'REQUEST_ACCESS' && 'Solicitar Acesso'}
+                {viewState === 'CHANGE_PASSWORD' && 'Troca de Senha'}
                 {viewState === 'RESET_PASSWORD_REQUEST' && 'Reset de Senha'}
               </h2>
               <p className="text-slate-500 mt-1 text-xs uppercase tracking-wide font-medium">
                 {viewState === 'LOGIN' && 'Gestão de Recadastramento'}
-                {viewState === 'SIGNUP' && 'Cadastro de Novo Usuário'}
+                {viewState === 'REQUEST_ACCESS' && 'Cadastro de Novo Usuário'}
+                {viewState === 'CHANGE_PASSWORD' && 'Segurança da Conta'}
                 {viewState === 'RESET_PASSWORD_REQUEST' && 'Recuperação de Acesso'}
               </p>
             </div>
@@ -193,8 +207,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            <button type="submit" disabled={loading} className="w-full bg-[#1e293b] hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50">
-              {loading ? 'Acessando...' : 'Acessar Plataforma'}
+            <button type="submit" className="w-full bg-[#1e293b] hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+              Acessar Plataforma
             </button>
             
             <div className="text-center pt-2">
@@ -203,15 +217,15 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                     onClick={() => { setViewState('RESET_PASSWORD_REQUEST'); setError(''); setSuccess(''); setEmail(''); }} 
                     className="text-xs text-slate-500 hover:text-blue-700 hover:underline transition-colors"
                 >
-                    Esqueceu sua senha?
+                    Esqueceu sua senha? Solicitar reset ao Máster
                 </button>
             </div>
           </form>
         )}
 
-        {/* 2. SIGNUP FORM */}
-        {viewState === 'SIGNUP' && (
-          <form onSubmit={handleSignupSubmit} className="space-y-5">
+        {/* 2. REQUEST ACCESS FORM */}
+        {viewState === 'REQUEST_ACCESS' && (
+          <form onSubmit={handleRequestAccessSubmit} className="space-y-5">
              <div className="relative group">
               <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 w-5 h-5" />
               <input
@@ -234,35 +248,52 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
-            <div className="relative group">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors w-5 h-5" />
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="Sua Senha"
-                required
-                className="w-full pl-10 pr-12 py-3.5 rounded-xl border border-slate-300 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 outline-none text-sm text-slate-700 bg-slate-50 focus:bg-white transition-all shadow-sm"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+            <button type="submit" className="w-full bg-[#1e293b] hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg">
+              Enviar Solicitação
+            </button>
+          </form>
+        )}
+
+        {/* 3. CHANGE PASSWORD FORM */}
+        {viewState === 'CHANGE_PASSWORD' && (
+          <form onSubmit={handleChangePasswordSubmit} className="space-y-5">
+            <div className="p-3 bg-blue-50 text-blue-800 text-xs rounded-lg border border-blue-100 flex items-start gap-2">
+                <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>Crie uma senha forte contendo letras, números e caractere especial (@ ou *).</span>
             </div>
-            <button type="submit" disabled={loading} className="w-full bg-[#1e293b] hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg disabled:opacity-50">
-              {loading ? 'Cadastrando...' : 'Criar Conta'}
+            <div className="relative group">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 w-5 h-5" />
+              <input
+                type="password"
+                placeholder="Nova Senha"
+                required
+                className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-slate-300 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 outline-none text-sm text-slate-700 bg-slate-50 focus:bg-white transition-all"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+            <div className="relative group">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 w-5 h-5" />
+              <input
+                type="password"
+                placeholder="Confirmar Nova Senha"
+                required
+                className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-slate-300 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 outline-none text-sm text-slate-700 bg-slate-50 focus:bg-white transition-all"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
+            <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg">
+              Salvar Nova Senha
             </button>
           </form>
         )}
         
-        {/* 3. RESET PASSWORD REQUEST FORM */}
+        {/* 4. RESET PASSWORD REQUEST FORM */}
         {viewState === 'RESET_PASSWORD_REQUEST' && (
             <form onSubmit={handleResetRequestSubmit} className="space-y-5">
                 <div className="p-3 bg-slate-50 text-slate-600 text-xs rounded-lg border border-slate-200 mb-2">
-                    Informe seu e-mail cadastrado para receber um link de recuperação de senha.
+                    Informe seu e-mail cadastrado. Se o usuário existir, o Administrador receberá uma notificação para resetar sua senha.
                 </div>
                 <div className="relative group">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 w-5 h-5" />
@@ -275,8 +306,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                         onChange={(e) => setEmail(e.target.value)}
                     />
                 </div>
-                <button type="submit" disabled={loading} className="w-full bg-[#1e293b] hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg disabled:opacity-50">
-                    {loading ? 'Enviando...' : 'Enviar Solicitação de Reset'}
+                <button type="submit" className="w-full bg-[#1e293b] hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg">
+                    Enviar Solicitação de Reset
                 </button>
             </form>
         )}
@@ -285,13 +316,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         <div className="mt-8 pt-6 border-t border-slate-100 text-center text-sm space-y-3">
           {viewState === 'LOGIN' && (
             <>
-              <button onClick={() => { setViewState('SIGNUP'); setError(''); setSuccess(''); setEmail(''); }} className="text-slate-500 hover:text-blue-700 font-medium transition-colors">
-                Não possui conta? <span className="underline">Criar Conta</span>
+              <button onClick={() => { setViewState('REQUEST_ACCESS'); setError(''); setSuccess(''); setEmail(''); }} className="text-slate-500 hover:text-blue-700 font-medium transition-colors">
+                Não possui conta? <span className="underline">Solicitar Acesso</span>
               </button>
             </>
           )}
 
-          {(viewState === 'SIGNUP' || viewState === 'RESET_PASSWORD_REQUEST') && (
+          {(viewState === 'REQUEST_ACCESS' || viewState === 'RESET_PASSWORD_REQUEST') && (
              <button onClick={() => { setViewState('LOGIN'); setError(''); setSuccess(''); setEmail(''); }} className="text-slate-500 hover:text-slate-800 font-medium transition-colors flex items-center justify-center gap-1 mx-auto">
                 ← Voltar ao login
              </button>

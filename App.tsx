@@ -6,86 +6,51 @@ import Dashboard from './components/Dashboard';
 import DetranList from './components/DetranList';
 import DetranDetail from './components/DetranDetail';
 import UserManagement from './components/UserManagement';
-import { getUser, saveUser, removeUser, getDetranData } from './services/storageService';
+import { getUser, saveUser, removeUser, getDetranData, getAllUsers, syncFromSupabase } from './services/storageService';
 import { User, DetranData } from './types';
-import { supabase } from './services/supabaseClient';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [data, setData] = useState<DetranData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Initialize data on mount
   useEffect(() => {
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const currentUser = getUser();
+      // Sync from Supabase first
+      await syncFromSupabase();
       
-      if (session?.user && currentUser) {
+      const currentUser = getUser();
+      if (currentUser) {
         setUser(currentUser);
-        
-        // Fetch user data from Supabase
-        const { data: userData, error } = await supabase
-          .from('user_data')
-          .select('data')
-          .eq('user_id', session.user.id)
-          .single();
-          
-        if (userData && userData.data) {
-          localStorage.setItem('detran_app_data', JSON.stringify(userData.data));
-          setData(userData.data);
-        } else {
-          setData(getDetranData());
-        }
-      } else {
-        setData(getDetranData());
       }
+      setData(getDetranData());
       setLoading(false);
     };
-    
     init();
   }, []);
 
-  // Poll for data changes (simple way to keep dashboard in sync without Redux/Context for this scope)
   useEffect(() => {
     if (!user) return;
-    const interval = setInterval(async () => {
+    const interval = setInterval(() => {
         setData(getDetranData());
         
-        // Security Check: Ensure user session is still valid
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-            alert('Sua sessão expirou.');
+        const usersDb = getAllUsers();
+        const currentUserDb = usersDb.find(u => u.email === user.email);
+        
+        if (!currentUserDb || !currentUserDb.isActive) {
+            alert('Seu acesso foi revogado ou sua conta foi removida pelo administrador.');
             handleLogout();
         }
-    }, 2000); // Check for updates every 2 seconds
+    }, 2000);
     return () => clearInterval(interval);
   }, [user]);
 
-  const handleLogin = async (newUser: User) => {
+  const handleLogin = (newUser: User) => {
     saveUser(newUser);
     setUser(newUser);
-    
-    if (newUser.id) {
-      const { data: userData, error } = await supabase
-        .from('user_data')
-        .select('data')
-        .eq('user_id', newUser.id)
-        .single();
-        
-      if (userData && userData.data) {
-        localStorage.setItem('detran_app_data', JSON.stringify(userData.data));
-        setData(userData.data);
-      } else {
-        const initialData = getDetranData();
-        await supabase.from('user_data').upsert({ user_id: newUser.id, data: initialData }, { onConflict: 'user_id' });
-        setData(initialData);
-      }
-    }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
     removeUser();
     setUser(null);
   };

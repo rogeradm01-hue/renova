@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AccessRequest, User, UserRole } from '../types';
-import { getAccessRequests, getAllUsers, approveRequest, deleteAccessRequest, toggleUserStatus, deleteUser, updateUserRole } from '../services/storageService';
-import { Check, X, UserCheck, Shield, Eye, Edit3, Clock, Ban, Power, Trash2, ChevronDown, KeyRound, UserPlus } from 'lucide-react';
+import { getAccessRequests, getAllUsers, approveRequest, deleteAccessRequest, toggleUserStatus, deleteUser, updateUserRole, resetUserPassword, clearAllHistory, clearAllDeadlines, clearAllContacts } from '../services/storageService';
+import { Check, X, UserCheck, Shield, Eye, Edit3, Clock, Ban, Power, Trash2, ChevronDown, KeyRound, UserPlus, Database, AlertTriangle, History, Calendar, Phone } from 'lucide-react';
 
 const UserManagement: React.FC = () => {
   const [requests, setRequests] = useState<AccessRequest[]>([]);
@@ -71,6 +71,23 @@ const UserManagement: React.FC = () => {
       }
   };
 
+  const handleResetPassword = (e: React.MouseEvent, user: User) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (user.role === 'MASTER') {
+          alert('A senha do usuário Master não pode ser resetada por aqui.');
+          return;
+      }
+
+      if (window.confirm(`Deseja resetar a senha de ${user.username} para 123456?`)) {
+          resetUserPassword(user.email);
+          setMessage(`Senha de ${user.username} resetada para 123456.`);
+          setTimeout(() => setMessage(''), 3000);
+          loadData();
+      }
+  };
+
   const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>, user: User) => {
       const newRole = e.target.value as UserRole;
       if (user.role === 'MASTER' || newRole === 'MASTER') return; // Segurança extra
@@ -83,6 +100,30 @@ const UserManagement: React.FC = () => {
       } else {
           // Recarrega para reverter visualmente se cancelado
           loadData();
+      }
+  };
+
+  const handleClearHistory = () => {
+      if (window.confirm('ATENÇÃO: Deseja realmente excluir o histórico da "Linha do Tempo e Status" de TODOS os Detrans? Esta ação é irreversível.')) {
+          clearAllHistory();
+          setMessage('Histórico da Linha do Tempo excluído com sucesso.');
+          setTimeout(() => setMessage(''), 3000);
+      }
+  };
+
+  const handleClearDeadlines = () => {
+      if (window.confirm('ATENÇÃO: Deseja realmente excluir as informações de "Prazos e Vencimentos" de TODOS os Detrans? Esta ação é irreversível.')) {
+          clearAllDeadlines();
+          setMessage('Informações de Prazos e Vencimentos excluídas com sucesso.');
+          setTimeout(() => setMessage(''), 3000);
+      }
+  };
+
+  const handleClearContacts = () => {
+      if (window.confirm('ATENÇÃO: Deseja realmente excluir as informações de "Contatos do Detran" de TODOS os Detrans? Esta ação é irreversível.')) {
+          clearAllContacts();
+          setMessage('Informações de Contatos excluídas com sucesso.');
+          setTimeout(() => setMessage(''), 3000);
       }
   };
 
@@ -265,6 +306,16 @@ const UserManagement: React.FC = () => {
                                         <div className="flex justify-end gap-2">
                                             <button
                                                 type="button"
+                                                onClick={(e) => handleResetPassword(e, u)}
+                                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium border text-amber-600 border-amber-200 hover:bg-amber-50 transition-colors"
+                                                title="Resetar senha para 123456"
+                                            >
+                                                <KeyRound className="w-3 h-3" />
+                                                Resetar
+                                            </button>
+
+                                            <button
+                                                type="button"
                                                 onClick={(e) => handleToggleStatus(e, u)}
                                                 className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors
                                                     ${u.isActive 
@@ -294,6 +345,67 @@ const UserManagement: React.FC = () => {
                         ))}
                     </tbody>
              </table>
+        </div>
+      </section>
+      {/* Gestão de Dados do Sistema */}
+      <section className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-5 border-b border-slate-200 bg-slate-50">
+            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Database className="w-5 h-5 text-blue-900" />
+                Gestão de Dados do Sistema
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">
+                Ações globais para limpeza de dados. Estas ações afetam <strong>TODOS</strong> os Detrans e são irreversíveis.
+            </p>
+        </div>
+        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="border border-red-200 bg-red-50 rounded-lg p-4 flex flex-col items-center text-center gap-3">
+                <div className="bg-white p-3 rounded-full shadow-sm">
+                    <History className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                    <h4 className="font-bold text-slate-800">Linha do Tempo</h4>
+                    <p className="text-xs text-slate-600 mt-1">Exclui todo o histórico de status e observações.</p>
+                </div>
+                <button
+                    onClick={handleClearHistory}
+                    className="mt-auto w-full flex items-center justify-center gap-2 bg-white border border-red-200 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                    <Trash2 className="w-4 h-4" /> Excluir Histórico
+                </button>
+            </div>
+
+            <div className="border border-red-200 bg-red-50 rounded-lg p-4 flex flex-col items-center text-center gap-3">
+                <div className="bg-white p-3 rounded-full shadow-sm">
+                    <Calendar className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                    <h4 className="font-bold text-slate-800">Prazos e Vencimentos</h4>
+                    <p className="text-xs text-slate-600 mt-1">Limpa datas de vencimento e alertas configurados.</p>
+                </div>
+                <button
+                    onClick={handleClearDeadlines}
+                    className="mt-auto w-full flex items-center justify-center gap-2 bg-white border border-red-200 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                    <Trash2 className="w-4 h-4" /> Excluir Prazos
+                </button>
+            </div>
+
+            <div className="border border-red-200 bg-red-50 rounded-lg p-4 flex flex-col items-center text-center gap-3">
+                <div className="bg-white p-3 rounded-full shadow-sm">
+                    <Phone className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                    <h4 className="font-bold text-slate-800">Contatos do Detran</h4>
+                    <p className="text-xs text-slate-600 mt-1">Apaga nomes, telefones e e-mails de contato.</p>
+                </div>
+                <button
+                    onClick={handleClearContacts}
+                    className="mt-auto w-full flex items-center justify-center gap-2 bg-white border border-red-200 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                    <Trash2 className="w-4 h-4" /> Excluir Contatos
+                </button>
+            </div>
         </div>
       </section>
     </div>
