@@ -31,7 +31,10 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!user) return;
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
+        // Sincroniza os dados da nuvem (Supabase) para o localStorage
+        await syncFromSupabase();
+        
         setData(getDetranData());
         
         const usersDb = getAllUsers();
@@ -41,7 +44,7 @@ const App: React.FC = () => {
             alert('Seu acesso foi revogado ou sua conta foi removida pelo administrador.');
             handleLogout();
         }
-    }, 2000);
+    }, 5000); // A cada 5 segundos
     return () => clearInterval(interval);
   }, [user]);
 

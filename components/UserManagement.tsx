@@ -10,6 +10,11 @@ const UserManagement: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    // Atualiza a tela a cada 5 segundos para refletir novas solicitações sincronizadas do Supabase
+    const interval = setInterval(() => {
+        loadData();
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadData = () => {

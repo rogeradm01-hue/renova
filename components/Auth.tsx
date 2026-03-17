@@ -55,7 +55,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     }
   };
 
-  const handleRequestAccessSubmit = (e: React.FormEvent) => {
+  const handleRequestAccessSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -65,7 +65,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       return;
     }
 
-    createAccessRequest(username, email);
+    await createAccessRequest(username, email);
     setSuccess('Solicitação enviada ao usuário Máster com sucesso!');
     setTimeout(() => {
         setViewState('LOGIN');
@@ -75,7 +75,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     }, 3000);
   };
 
-  const handleResetRequestSubmit = (e: React.FormEvent) => {
+  const handleResetRequestSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setError('');
       setSuccess('');
@@ -85,7 +85,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           return;
       }
 
-      const result = createPasswordResetRequest(email);
+      const result = await createPasswordResetRequest(email);
       if (result.success) {
           setSuccess(result.message);
           setTimeout(() => {

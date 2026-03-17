@@ -138,7 +138,8 @@ export const getAccessRequests = (): AccessRequest[] => {
 };
 
 // Solicitação de Novo Cadastro
-export const createAccessRequest = (username: string, email: string): void => {
+export const createAccessRequest = async (username: string, email: string): Promise<void> => {
+  await syncFromSupabase(); // Garante que temos as solicitações mais recentes
   const requests = getAccessRequests();
   const normalizedEmail = email.trim().toLowerCase();
   
@@ -154,11 +155,12 @@ export const createAccessRequest = (username: string, email: string): void => {
   };
 
   localStorage.setItem(STORAGE_KEYS.ACCESS_REQUESTS, JSON.stringify([...requests, newRequest]));
-  syncToSupabase();
+  await syncToSupabase();
 };
 
 // Solicitação de Reset de Senha
-export const createPasswordResetRequest = (email: string): { success: boolean, message: string } => {
+export const createPasswordResetRequest = async (email: string): Promise<{ success: boolean, message: string }> => {
+    await syncFromSupabase(); // Garante que temos os dados mais recentes
     const users = getAllUsers();
     const normalizedEmail = email.trim().toLowerCase();
     
@@ -187,7 +189,7 @@ export const createPasswordResetRequest = (email: string): { success: boolean, m
     };
 
     localStorage.setItem(STORAGE_KEYS.ACCESS_REQUESTS, JSON.stringify([...requests, newRequest]));
-    syncToSupabase();
+    await syncToSupabase();
     return { success: true, message: 'Solicitação de reset enviada ao Administrador.' };
 };
 
