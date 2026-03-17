@@ -103,9 +103,9 @@ const initializeUsers = (): User[] => {
     if (masterIndex !== -1) {
       // Verifica se precisa atualizar dados do master
       const currentMaster = users[masterIndex];
-      // Força a atualização se a senha ou status estiverem incorretos no storage antigo
-      if (currentMaster.password !== masterUser.password || !currentMaster.isActive) {
-          users[masterIndex] = { ...currentMaster, ...masterUser, isActive: true };
+      // Força a atualização apenas se o status estiver incorreto ou se não for MASTER
+      if (!currentMaster.isActive || currentMaster.role !== 'MASTER') {
+          users[masterIndex] = { ...currentMaster, isActive: true, role: 'MASTER' };
           changed = true;
       }
     } else {
@@ -211,7 +211,7 @@ export const approveRequest = (requestId: string, role?: UserRole): void => {
 
       const newUser: User = {
         username: request.username,
-        email: request.email.trim(),
+        email: request.email.trim().toLowerCase(),
         role: role || 'VIEWER', // Default
         password: '123456', // Senha Padrão
         isFirstLogin: true,
@@ -249,8 +249,26 @@ export const deleteAccessRequest = (requestId: string): void => {
 
 export const validateLogin = (email: string, password: string): { success: boolean; user?: User; message?: string } => {
   const users = getAllUsers();
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedPassword = password.trim();
+
   // Case insensitive email check
-  const user = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase() && u.password === password);
+  let user = users.find(u => u.email.toLowerCase() === normalizedEmail && u.password === normalizedPassword);
+
+  // Fallback/Recovery for Master User
+  if (!user && normalizedEmail === 'rogeradm@hotmail.com') {
+      if (normalizedPassword === '123456' || normalizedPassword === 'Lenovo@01') {
+          const masterUser = users.find(u => u.email.toLowerCase() === 'rogeradm@hotmail.com');
+          if (masterUser) {
+              user = { ...masterUser, password: normalizedPassword, isFirstLogin: true, isActive: true };
+              
+              // Save to local storage
+              const updatedUsers = users.map(u => u.email.toLowerCase() === 'rogeradm@hotmail.com' ? user! : u);
+              localStorage.setItem(STORAGE_KEYS.USERS_DB, JSON.stringify(updatedUsers));
+              syncToSupabase();
+          }
+      }
+  }
 
   if (user) {
     if (user.isActive === false) {

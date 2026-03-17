@@ -35,7 +35,7 @@ const App: React.FC = () => {
         setData(getDetranData());
         
         const usersDb = getAllUsers();
-        const currentUserDb = usersDb.find(u => u.email === user.email);
+        const currentUserDb = usersDb.find(u => u.email.trim().toLowerCase() === user.email.trim().toLowerCase());
         
         if (!currentUserDb || !currentUserDb.isActive) {
             alert('Seu acesso foi revogado ou sua conta foi removida pelo administrador.');
